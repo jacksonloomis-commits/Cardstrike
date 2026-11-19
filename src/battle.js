@@ -12,6 +12,17 @@
     handIdx: null, pendingCast: null, botTimer: null, unitEls: {}, built: false,
   };
   const DIFFS = ['Easy', 'Normal', 'Hard', 'Expert'];
+  const STATUS_HELP = {
+    burning: 'takes damage at the start of each of its turns',
+    poison: 'takes growing damage at the start of each of its turns',
+    frozen: 'cannot move, attack, or use abilities while it lasts',
+    stunned: 'cannot act while it lasts',
+    shielded: 'absorbs damage before HP',
+    slowed: 'movement reduced',
+    hasted: 'movement increased',
+    buff: 'attack/defense boosted by an aura or spell',
+    regen: 'heals at the start of each of its turns',
+  };
 
   /* ---------------- opening a match ---------------- */
   function open(setup) {
@@ -46,6 +57,7 @@
     B.handIdx = null; B.pendingCast = null; B.unitEls = {}; B.built = false;
     if (B.botTimer) { clearTimeout(B.botTimer); B.botTimer = null; }
     U.show('battle');
+    $('#bt-help').onclick = () => showGlossary();
     render();
     U.toast(setup.mode === 'hotseat' ? 'Hotseat match — pass the device between turns!' : 'Place your commander on your side of the field.');
   }
@@ -175,10 +187,15 @@
       if (!d) {
         d = el('div', 'unit');
         d.dataset.uid = u.id;
+        d.addEventListener('contextmenu', (ev) => { ev.preventDefault(); inspectUnit(u.id); });
+        let lpT = null;
+        d.addEventListener('touchstart', () => { lpT = setTimeout(() => { lpT = null; B.lpAt = Date.now(); inspectUnit(u.id); }, 450); }, { passive: true });
+        const cancelLp = () => { if (lpT) { clearTimeout(lpT); lpT = null; } };
+        d.addEventListener('touchend', cancelLp);
+        d.addEventListener('touchmove', cancelLp);
         layer.appendChild(d);
         B.unitEls[u.id] = d;
       }
-      void 0;
       const w = (u.size ? u.size.w * 100 / C.board.w : 100 / C.board.w);
       const h = (u.size ? u.size.h * 100 / C.board.h : 100 / C.board.h);
       d.style.width = w + '%'; d.style.height = h + '%';
@@ -204,6 +221,9 @@
         (shield ? '<b style="width:' + Math.min(100, (shield.power / Math.max(1, u.maxHp)) * 100) + '%"></b>' : '') + '</div>' +
         (u.statuses.length ? '<div class="u-st">' + u.statuses.map((x) => '<i title="' + x.status + '">' + (NS.Engine.STATUS[x.status] ? NS.Engine.STATUS[x.status].icon : '◆') + '</i>').join('') + '</div>' : '') +
         '<div class="u-name">' + esc(u.name) + '</div>';
+      d.title = u.name + ' — HP ' + u.hp + '/' + u.maxHp +
+        (u.kind === 'unit' || u.kind === 'commander' ? ' · ATK ' + E().statOf(st, u, 'atk') + ' · DEF ' + E().statOf(st, u, 'def') : '') +
+        ' (tap & hold or right-click for full details)';
     });
     Object.keys(B.unitEls).forEach((id) => { if (!seen[id]) { B.unitEls[id].remove(); delete B.unitEls[id]; } });
   }
@@ -350,9 +370,10 @@
     const st = B.st;
     const u = E().byId(st, uid);
     if (!u) return;
-    if (isBotTurn()) return;
+    if (B.lpAt && Date.now() - B.lpAt < 600) { B.lpAt = 0; return; } // long-press just opened the inspector
+    if (isBotTurn()) { inspectUnit(uid); return; } // inspecting the opponent is always allowed
     const p = st.active;
-    if (st.phase === 'placement') return;
+    if (st.phase === 'placement') { inspectUnit(uid); return; }
     if (B.mode === 'deploy' && B.handIdx != null) {
       doAction({ t: 'deploy', handIdx: B.handIdx, targets: { unit: uid } });
       return;
@@ -363,6 +384,7 @@
     }
     if (u.owner !== p) {
       if (B.sel) doAction({ t: 'attack', unit: B.sel, target: uid });
+      else inspectUnit(uid); // nothing selected → tapping an enemy just explains it
       return;
     }
     if (B.sel === uid) { B.sel = null; B.mode = 'idle'; render(); return; }
@@ -383,6 +405,83 @@
     if (st.winner != null) { onVictory(); return; }
     if (act.t === 'end') maybeBotAct();
     else if (isBotTurn()) maybeBotAct();
+  }
+
+  /* ---------------- inspect: what does this piece do? ---------------- */
+  function inspectUnit(uid) {
+    const st = B.st;
+    const u = E().byId(st, uid);
+    if (!u) return;
+    const card = u.cardId ? NS.CARD[u.cardId] : null;
+    const color = u.owner === 0 ? '#7ec2ff' : '#e08ac2';
+    const who = esc(st.players[u.owner].name) + (u.owner === 0 ? ' — yours' : ' — opponent');
+    const c = el('div', 'card-detail insp');
+    let html =
+      '<div class="card-top"><span class="cost">' + (card ? card.cost : '—') + '</span><span class="cname">' + esc(u.name) + '</span></div>' +
+      '<div class="card-art">' + U.art(u.cardId || 'spark', { color }) + '</div>' +
+      '<div class="insp-owner">' + who + '</div>';
+    if (u.kind === 'base') {
+      html += '<div class="sel-stats"><span>HP ' + u.hp + '/' + u.maxHp + '</span></div>' +
+        '<div class="card-desc">A Main Base. It cannot move or attack — if it is destroyed, its owner loses the match.</div>';
+    } else {
+      const combat = u.kind === 'unit' || u.kind === 'commander';
+      html += '<div class="sel-stats"><span>HP ' + u.hp + '/' + u.maxHp + '</span>' +
+        (combat ? '<span>ATK ' + E().statOf(st, u, 'atk') + '</span><span>DEF ' + E().statOf(st, u, 'def') + '</span><span>MOV ' + E().statOf(st, u, 'mv') + '</span>' +
+        '<span>◎ ' + (u.pattern === 'cleave' ? 'cleave — hits ALL adjacent enemies' : u.pattern + ' attack, ' + (u.rng[0] === u.rng[1] ? u.rng[0] : u.rng[0] + '–' + u.rng[1]) + ' sq' + (u.los ? '' : ', ignores line of sight')) + '</span>' : '') +
+        '</div>';
+      html += '<div class="card-desc">' + esc(card ? card.desc : (u.token ? 'Summoned token.' : 'Battlefield piece.')) + '</div>';
+      (u.abilities || []).forEach((a, i) => {
+        const live = (u.abilityUses || {})[i];
+        html += '<div class="insp-ab"><b>' + esc(a.name) + '</b> — ' + a.cost + '⚡ per use' +
+          (live ? ' · ' + live.usesLeft + ' use' + (live.usesLeft === 1 ? '' : 's') + ' left this match' + (live.cdLeft > 0 ? ' · ready in ' + live.cdLeft + ' turn' + (live.cdLeft === 1 ? '' : 's') : '') : '') +
+          (a.desc ? '<br>' + esc(a.desc) : '') + '</div>';
+      });
+      if (u.counter) html += '<div class="insp-ab"><b>Counterattack</b><br>Strikes back when an enemy attacks it.</div>';
+    }
+    if (u.statuses.length) {
+      html += '<div class="sel-st">' + u.statuses.map((x) => {
+        const S = NS.Engine.STATUS[x.status];
+        return '<span class="stat-tag">' + (S ? S.icon + ' ' + esc(S.name) : esc(x.status)) + (x.power ? ' ' + x.power : '') + ' (' + x.dur + 't)</span>' +
+          '<span class="insp-help">' + esc(STATUS_HELP[x.status] || '') + '</span>';
+      }).join('<br>') + '</div>';
+    }
+    html += '<p class="muted insp-tip">Tip: tap & hold (or right-click) any piece on the field to open this panel — including the opponent\'s.</p>';
+    c.innerHTML = html;
+    U.modal(c);
+  }
+
+  /* ---------------- guide: what does any move do? ---------------- */
+  function showGlossary() {
+    const item = (k, v) => '<div class="gloss-item"><span class="gi">' + k + '</span><span>' + v + '</span></div>';
+    const c = el('div', 'card-detail gloss');
+    let html = '<h3>How to play — what every move does</h3>';
+    html += '<h4>Your turn</h4>';
+    html += item('⚡ Energy', 'You gain ' + C.energy.incomeBase + ' energy + ' + C.energy.incomeGrowth + ' per turn taken (max ' + C.energy.incomeCap + '/turn). Up to ' + C.energy.carryCap + ' unused energy carries over to your next turn.');
+    html += item('Select', 'Tap one of your pieces. Blue tiles = where it can move; enemies glowing red are in attack range.');
+    html += item('Move', 'With a piece selected, tap a blue tile. One move per turn.');
+    html += item('Attack', 'With a piece selected, tap a red-glowing enemy. Each attack costs ' + C.energy.attackCost + '⚡. Range and attack pattern are shown on every piece.');
+    html += item('Deploy', 'Tap a card in your hand, then a yellow-highlighted tile on your side. Costs the card\'s ⚡ cost shown on it.');
+    html += item('Ability', 'Select a piece — its ability buttons appear in the side panel. Each has an energy cost, limited uses per match, and a cooldown.');
+    html += item('Recover', 'A wounded unit standing next to your commander can be healed to ' + Math.round(C.energy.recoverTo * 100) + '% HP for ' + C.energy.recoverCost + '⚡.');
+    html += item('End turn', 'You draw a card. If your hand is full the draw is lost; if your deck is empty, failed draws deal lethal fatigue — keep an eye on the ☠ counter.');
+    html += '<h4>Winning</h4>';
+    html += item('★', 'Destroy the enemy <b>Main Base</b>, or defeat <b>all of their commanders</b>.');
+    html += '<h4>Combat details</h4>';
+    html += item('DEF', 'Defense subtracts from incoming damage (minimum 1 gets through). Some effects pierce DEF; shields absorb damage first.');
+    html += item('LOS', 'Attacks need a clear line between attacker and target — any piece standing in the way blocks it. Pieces marked "ignores line of sight" shoot over heads.');
+    html += item('Cleave', 'Cleave pieces hit every adjacent enemy at once.');
+    html += item('Counter', 'Pieces with Counterattack strike back when attacked.');
+    html += '<h4>Tiles</h4>';
+    html += item('🔥 Ember', 'Standing here burns for 1 damage (ignores DEF) at your turn start.');
+    html += item('🌌 Rift', 'Enemies standing here take 2 damage at their turn start.');
+    html += item('🧊 Wall', 'Impassable barrier — pieces cannot enter or cross it.');
+    html += '<h4>Statuses</h4>';
+    html += item('Icons', '🔥 Burning · ☠ Poison · ❄ Frozen · ✷ Stunned · ⛨ Shield · 🐌 Slowed · ⚡ Hasted · ↑ Empowered · ✚ Regen — tap & hold any piece to see exactly what afflicts it and for how long.');
+    html += '<h4>Legend</h4>';
+    html += item('Colors', 'Blue tiles = move · Yellow tiles = deploy · Red glow = attack target · Gold ring = selected · Green tiles = retreat/return squares.');
+    html += '<p class="muted insp-tip">The opponent\'s pieces work the same way — inspect them before you walk into their range.</p>';
+    c.innerHTML = html;
+    U.modal(c);
   }
 
   /* ---------------- animations ---------------- */
