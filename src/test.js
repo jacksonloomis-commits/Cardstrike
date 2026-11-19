@@ -457,6 +457,21 @@ t('expert beats easy more often than not (skill gradient)', () => {
   } finally { Math.random = realRandom; }
   ok(expert >= 2, 'expert won ' + expert + '/3 vs easy (seeded)');
 });
+t('ranged attacks fire over allied bodies; enemy bodies still block', () => {
+  const st = mkMatch(); st.phase = 'main';
+  const sl = Engine._spawn(st, 'slinger', 0, 5, 8);   // ortho, rng [2,2]
+  Engine._spawn(st, 'pikeman', 0, 5, 7);              // ally directly in front
+  const foe = Engine._spawn(st, 'pikeman', 1, 5, 6);  // enemy beyond the ally
+  ok(Engine.legalAttacks(st, sl.id).some((a) => a.target === foe.id), 'ally must not block LOS');
+  const sl2 = Engine._spawn(st, 'slinger', 0, 2, 8);
+  Engine._spawn(st, 'pikeman', 1, 2, 7);              // enemy body mid-line
+  const far = Engine._spawn(st, 'pikeman', 1, 2, 6);  // enemy beyond the blocker
+  ok(!Engine.legalAttacks(st, sl2.id).some((a) => a.target === far.id), 'enemy body must block the line beyond it');
+  const sk = Engine._spawn(st, 'skirmisher', 0, 4, 8); // radial rng [1,2]
+  Engine._spawn(st, 'pikeman', 0, 5, 9);               // ally on the diagonal corridor
+  const foe2 = Engine._spawn(st, 'pikeman', 1, 6, 10); // dx 2, dy 2
+  ok(Engine.legalAttacks(st, sk.id).some((a) => a.target === foe2.id), 'radial attack over allied corridor works');
+});
 t('AI never deploys outside own side or on occupied tiles', () => {
   const st = mkMatch();
   st.players[0].bot = 3; st.players[1].bot = 3;

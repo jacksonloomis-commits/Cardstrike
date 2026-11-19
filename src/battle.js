@@ -135,7 +135,8 @@
     const o = E().getOptions(st);
     if (B.sel) {
       (o.moves[B.sel] || []).forEach((t) => { out.tiles[t.x + ',' + t.y] = t.ret ? 'hl-return' : 'hl-move'; });
-      (o.attacks[B.sel] || []).forEach((a) => { out.units[a.target] = 'hl-attack'; });
+      const canPayAtk = st.players[p].energy >= C.energy.attackCost;
+      (o.attacks[B.sel] || []).forEach((a) => { if (canPayAtk) out.units[a.target] = 'hl-attack'; }); // red glow only when affordable
       const u = E().byId(st, B.sel);
       if (u) out.units[u.id] = 'hl-sel';
     }
@@ -281,7 +282,9 @@
         if (!isBotTurn() && !u.fallen && u.owner === st.active && st.phase === 'main') {
           const canAttack = (o.attacks[u.id] || []).length > 0;
           const canMove = (o.moves[u.id] || []).length > 0;
-          const btnA = el('button', 'btn small' + (canAttack ? '' : ' dim'), 'Attack' + (canAttack ? ' (1⚡)' : ' — no targets'));
+          const canPayAtk = st.players[st.active].energy >= C.energy.attackCost;
+          const btnA = el('button', 'btn small' + (canAttack ? '' : ' dim'),
+            canAttack ? (canPayAtk ? 'Attack (1⚡)' : 'Attack — need 1⚡ (you have ' + st.players[st.active].energy + '⚡)') : 'Attack — no targets');
           btnA.disabled = !canAttack;
           btnA.onclick = () => { U.sfx('click'); B.mode = 'unit'; toastSide('Click a highlighted enemy to attack.'); render(); };
           const btnM = el('button', 'btn small' + (canMove ? '' : ' dim'), canMove ? 'Move' : (E().legalMoves(st, u.id).length ? 'Moved ✓' : 'Cannot move'));
@@ -383,8 +386,13 @@
       return;
     }
     if (u.owner !== p) {
-      if (B.sel) doAction({ t: 'attack', unit: B.sel, target: uid });
-      else inspectUnit(uid); // nothing selected → tapping an enemy just explains it
+      if (B.sel) {
+        if (st.players[p].energy < C.energy.attackCost) {
+          U.toast('Attacks cost ' + C.energy.attackCost + '⚡ — you have ' + st.players[p].energy + '⚡. End your turn to gain more.', 'bad');
+          return; // keep the selection so the player can pick a different action
+        }
+        doAction({ t: 'attack', unit: B.sel, target: uid });
+      } else inspectUnit(uid); // nothing selected → tapping an enemy just explains it
       return;
     }
     if (B.sel === uid) { B.sel = null; B.mode = 'idle'; render(); return; }
@@ -468,7 +476,7 @@
     html += item('★', 'Destroy the enemy <b>Main Base</b>, or defeat <b>all of their commanders</b>.');
     html += '<h4>Combat details</h4>';
     html += item('DEF', 'Defense subtracts from incoming damage (minimum 1 gets through). Some effects pierce DEF; shields absorb damage first.');
-    html += item('LOS', 'Attacks need a clear line between attacker and target — any piece standing in the way blocks it. Pieces marked "ignores line of sight" shoot over heads.');
+    html += item('LOS', 'Ranged attacks need a clear line to the target. Your own allies never block your fire — enemy bodies do, so flank them. Pieces marked "ignores line of sight" shoot over everything.');
     html += item('Cleave', 'Cleave pieces hit every adjacent enemy at once.');
     html += item('Counter', 'Pieces with Counterattack strike back when attacked.');
     html += '<h4>Tiles</h4>';

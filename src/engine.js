@@ -252,8 +252,10 @@
       default: return Math.max(ax, ay) >= min && Math.max(ax, ay) <= max;
     }
   }
-  function hasLos(st, a, b) {
-    // bounded Bresenham ray — handles non-aligned pairs without overshoot
+  function hasLos(st, a, b, owner) {
+    // bounded Bresenham ray — handles non-aligned pairs without overshoot.
+    // pieces owned by `owner` are transparent: you fire over your own lines;
+    // enemy bodies block. Fallen commanders still anchor/block (they are bodies).
     let x = a.x, y = a.y;
     const sx = Math.sign(b.x - a.x), sy = Math.sign(b.y - a.y);
     let nx = Math.abs(b.x - a.x), ny = Math.abs(b.y - a.y);
@@ -262,7 +264,9 @@
     while ((x !== b.x || y !== b.y) && guard-- > 0) {
       if (2 * err > -ny) { err -= ny; x += sx; } else { err += nx; y += sy; }
       if (x === b.x && y === b.y) break;
-      if (!inBoard(x, y) || unitAt(st, x, y)) return false;
+      if (!inBoard(x, y)) return false;
+      const blk = unitAt(st, x, y);
+      if (blk && blk.owner !== owner) return false;
     }
     return x === b.x && y === b.y;
   }
@@ -277,7 +281,7 @@
       const dx = e.x - u.x, dy = e.y - u.y;
       if (!inPattern(u, dx, dy, rmax)) return;
       if (u.pattern === 'ortho' || u.pattern === 'diag' || u.pattern === 'radial') {
-        if (u.los && !hasLos(st, u, e)) return;
+        if (u.los && !hasLos(st, u, e, u.owner)) return;
       }
       out.push({ target: e.id });
     });
