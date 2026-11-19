@@ -1,0 +1,4 @@
+test-output.log
+*.png
+node_modules
+.DS_Store

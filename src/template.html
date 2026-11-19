@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cardstrike — Tactical Collectible Strategy Card Game</title>
+<meta name="description" content="Cardstrike: a dark fantasy × sci-fi tactical collectible card game. Collect, build decks, command commanders on an 11×11 battlefield.">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<header class="topbar">
+  <span class="logo">Card<b>strike</b></span>
+  <nav class="topnav">
+    <button class="nav-btn" data-nav="menu">Menu</button>
+    <button class="nav-btn" data-nav="collection">Collection</button>
+    <button class="nav-btn" data-nav="decks">Decks</button>
+    <button class="nav-btn" data-nav="packs">Packs</button>
+    <button class="nav-btn" data-nav="trade">Trade</button>
+    <button class="nav-btn" data-nav="events">Events</button>
+    <button class="nav-btn" data-nav="tournament">Tournament</button>
+    <button class="nav-btn" data-nav="profile">Profile</button>
+  </nav>
+  <div id="cur-slot" class="curbar"></div>
+</header>
+
+<!-- ============ MAIN MENU ============ -->
+<section id="screen-menu" class="screen">
+  <div class="menu-hero">
+    <h1>Card<span>strike</span></h1>
+    <div class="tagline">Collect · Build · Command · Strike</div>
+    <div class="menu-cards" id="menu-showcase"></div>
+    <div class="menu-actions">
+      <button class="btn primary" id="btn-play">⚔ &nbsp;Play — vs Bot or Hotseat PvP</button>
+      <button class="btn" data-nav="packs">🎁 &nbsp;Open Packs</button>
+      <button class="btn" data-nav="decks">🂠 &nbsp;Deck Builder</button>
+      <button class="btn" data-nav="events">🔥 &nbsp;Events</button>
+      <button class="btn" data-nav="tournament">👑 &nbsp;Grand Tournament</button>
+    </div>
+    <div id="menu-dupes-note"></div>
+    <div class="deck-status-line">Active deck: <b id="menu-deck-name">—</b> <span id="menu-deck-valid"></span></div>
+    <p class="muted" style="max-width:560px;margin:18px auto 0;font-size:13px;">
+      11×11 tactical battlefield · commanders anchor deployment &amp; recovery · energy carries over ·
+      three victory conditions: commander elimination, base destruction, deck-exhaustion fatigue.
+    </p>
+  </div>
+</section>
+
+<!-- ============ BATTLE ============ -->
+<section id="screen-battle" class="screen">
+  <div class="bt-top">
+    <div id="bt-info"></div>
+    <div id="bt-players" style="display:flex;gap:16px;flex-wrap:wrap;"></div>
+    <div id="bt-energy" style="display:flex;gap:10px;align-items:center;"></div>
+    <div style="margin-left:auto;display:flex;gap:8px;">
+      <button class="btn small" id="bt-forfeit">Forfeit</button>
+      <button class="btn primary" id="bt-end">End turn ▶</button>
+    </div>
+  </div>
+  <div id="bt-banner"></div>
+  <div class="battle-layout">
+    <div class="board-wrap">
+      <div id="bt-hint"></div>
+      <div id="board"></div>
+    </div>
+    <div class="bt-side-col" id="bt-side"></div>
+  </div>
+  <div class="hand-wrap"><div id="bt-hand"></div></div>
+</section>
+
+<!-- ============ COLLECTION ============ -->
+<section id="screen-collection" class="screen">
+  <div class="panel">
+    <h2>Collection</h2>
+    <div id="col-dupes"></div>
+    <div class="filter-row">
+      <select id="col-type"><option value="all">All types</option><option value="unit">Units</option><option value="commander">Commanders</option><option value="spell">Spells</option><option value="structure">Structures</option></select>
+      <select id="col-rarity"><option value="all">All rarities</option><option value="0">Common</option><option value="1">Uncommon</option><option value="2">Rare</option><option value="3">Epic</option><option value="4">Legendary</option><option value="5">Mythic</option></select>
+      <select id="col-theme"><option value="all">All themes</option><option value="verdant">Verdant</option><option value="horde">Horde</option><option value="legion">Legion</option><option value="custodes">Custodes</option><option value="arcane">Arcane</option><option value="neutral">Neutral</option></select>
+      <label><input type="checkbox" id="col-owned"> Owned only</label>
+      <input type="search" id="col-q" placeholder="Search cards…">
+    </div>
+    <div id="col-grid" class="card-grid"></div>
+  </div>
+</section>
+
+<!-- ============ DECKS ============ -->
+<section id="screen-decks" class="screen">
+  <div class="panel">
+    <h2>Deck Builder</h2>
+    <div id="deck-slots" style="margin-bottom:10px;"></div>
+    <div class="deck-layout">
+      <div>
+        <div class="deck-controls">
+          <input id="deck-name" value="Deck">
+          <button class="btn primary" id="deck-save">Save deck</button>
+          <button class="btn" id="deck-activate">Set as active ★</button>
+          <button class="btn" id="deck-autofill">Auto-fill from collection</button>
+        </div>
+        <div id="deck-status"></div>
+        <p class="muted">Exactly 35 cards · max 2 commanders · Commons up to 3 copies, other rarities 1 copy. Click a deck row to remove it.</p>
+        <div id="deck-list" class="deck-list"></div>
+      </div>
+      <div class="deck-side">
+        <h4 style="color:var(--blue)">Your collection — click to add</h4>
+        <div id="deck-pool" class="card-grid" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PACKS ============ -->
+<section id="screen-packs" class="screen">
+  <div class="panel">
+    <h2>Packs &amp; Economy</h2>
+    <p class="muted" style="margin-bottom:12px;">Coins buy packs. Duplicates can be sold for Coins or converted to Star Points (cosmetics). Credits upgrade cards and are earned only through play.</p>
+    <div id="pack-grid" class="pack-grid"></div>
+  </div>
+</section>
+
+<!-- ============ TRADE ============ -->
+<section id="screen-trade" class="screen">
+  <div class="panel">
+    <h2>Trade Post</h2>
+    <p class="muted" style="margin-bottom:8px;">Prototype trade interface with simulated brokers. Real PvP trading will reuse the same validation (ownership check, uniqueness protection, two-sided confirmation). <span id="trade-used"></span></p>
+    <div id="trade-offers"></div>
+  </div>
+</section>
+
+<!-- ============ EVENTS ============ -->
+<section id="screen-events" class="screen">
+  <div class="panel">
+    <h2>Events</h2>
+    <p class="muted" style="margin-bottom:10px;">Events are defined by administrators as configuration (rules, dates, rewards, special packs, rule modifiers). The active event applies its battle modifier and coin multiplier automatically.</p>
+    <div id="event-list"></div>
+  </div>
+</section>
+
+<!-- ============ TOURNAMENT ============ -->
+<section id="screen-tournament" class="screen">
+  <div class="panel">
+    <h2>Grand Tournament</h2>
+    <div id="tourn-body"></div>
+  </div>
+</section>
+
+<!-- ============ PROFILE ============ -->
+<section id="screen-profile" class="screen">
+  <div class="panel">
+    <h2>Profile &amp; Progression</h2>
+    <div class="pf-grid">
+      <div class="pf-panel">
+        <div class="pf-head">
+          <div class="avatar-circle">⚔</div>
+          <div style="flex:1;min-width:200px;">
+            <input id="pf-name" value="Striker" style="background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 12px;width:100%;">
+            <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+              <span class="cur lvl" id="pf-level">Lv 1</span>
+              <div class="xp-track"><i id="pf-xpbar"></i></div>
+              <span class="muted" id="pf-xptext"></span>
+            </div>
+          </div>
+        </div>
+        <div class="stat-grid" id="pf-stats"></div>
+        <div id="pf-weekly"></div>
+        <h4>Achievements <span class="muted">(cosmetic rewards only)</span></h4>
+        <div id="pf-achievements"></div>
+      </div>
+      <div class="pf-panel">
+        <div id="pf-shop"></div>
+        <h4>Settings &amp; Data</h4>
+        <div class="cos-row"><label><input type="checkbox" id="set-sfx"> Sound effects</label></div>
+        <div class="cos-row"><label><input type="checkbox" id="set-anim"> Animations (reduced motion respected)</label></div>
+        <div class="btnrow2" style="justify-content:flex-start;">
+          <button class="btn" id="btn-export">⬇ Export save</button>
+          <button class="btn" id="btn-import">⬆ Import save</button>
+          <input type="file" id="file-import" accept=".json" style="display:none">
+          <button class="btn" id="btn-reset" style="border-color:var(--red);color:#ffb3bc;">Reset progress</button>
+        </div>
+        <p class="muted" style="margin-top:10px;font-size:12px;">Progress is stored locally in your browser (localStorage). Export a save file to back it up or move it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="toasts"></div>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>
